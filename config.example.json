@@ -1,0 +1,70 @@
+{
+  "_comentario": "Configuración de EJEMPLO de NEXO TERMINAL (sin secretos). Cópiala a ~/.nexo/config.json y adáptala. Las API keys NO van aquí: se guardan en ~/.nexo/secrets.json (permisos 0600) con el comando '/provider key <nombre>'.",
+  "workspace": "~/mis-proyectos",
+  "active_provider": "ollama-local",
+  "permission_mode": "seguro",
+  "backups_enabled": true,
+  "command_timeout": 60,
+  "allowed_commands": [],
+  "denied_commands": [],
+  "history_limit": 200,
+  "providers": [
+    {
+      "name": "ollama-local",
+      "type": "ollama",
+      "base_url": "http://127.0.0.1:11434",
+      "model": "llama3.2",
+      "timeout": 180,
+      "stream": true,
+      "retries": 1,
+      "params": { "temperature": 0.2 },
+      "_nota": "Ollama no suele ejecutarse dentro de Termux: apunta base_url a un PC de tu red local (p. ej. http://192.168.1.10:11434) o usa otro proveedor."
+    },
+    {
+      "name": "openai-ejemplo",
+      "type": "openai",
+      "base_url": "https://api.openai.com/v1",
+      "model": "gpt-4o-mini",
+      "timeout": 120,
+      "stream": true,
+      "retries": 2,
+      "params": { "temperature": 0.3 },
+      "_nota_clave": "Guarda la clave con: /provider key openai-ejemplo"
+    },
+    {
+      "name": "anthropic-ejemplo",
+      "type": "anthropic",
+      "base_url": "https://api.anthropic.com",
+      "model": "claude-sonnet-4-20250514",
+      "timeout": 120,
+      "stream": true,
+      "retries": 2,
+      "params": { "max_tokens": 2048 }
+    },
+    {
+      "name": "custom-ejemplo",
+      "type": "custom",
+      "base_url": "https://mi-endpoint.local/chat",
+      "model": "mi-modelo",
+      "timeout": 60,
+      "stream": false,
+      "retries": 1,
+      "params": {
+        "content_key": "result.reply",
+        "_docs": "Marcadores de plantilla 'body': {model}, {messages}, {system}, {stream}. stream_mode: none|sse|ndjson. stream_content_key: ruta al delta (p. ej. choices.0.delta.content)."
+      }
+    }
+  ],
+  "agent_limits": {
+    "max_iterations": 12,
+    "max_seconds": 600,
+    "max_output_chars": 20000,
+    "max_file_read_chars": 100000
+  },
+  "ui": {
+    "color": true,
+    "width": 0,
+    "animate": true,
+    "small_screen": true
+  }
+}
