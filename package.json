@@ -1,0 +1,30 @@
+{
+  "name": "nexo-terminal",
+  "version": "1.0.0",
+  "description": "NEXO Terminal — Advanced AI Coding Agent for Android & Termux",
+  "main": "src/server.js",
+  "bin": {
+    "nexo": "./bin/nexo.js"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node src/server.js",
+    "test": "node --test tests/**/*.test.js",
+    "cli": "node bin/nexo.js"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "termux",
+    "android",
+    "coding-agent",
+    "developer-tools",
+    "git",
+    "terminal"
+  ],
+  "author": "NEXO Intelligence",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

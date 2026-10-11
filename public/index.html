@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>NEXO Terminal — Terminal Intelligence</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app" class="nexo-container">
+
+    <!-- 1. HEADER NEXO -->
+    <header class="nexo-header">
+      <div class="header-left">
+        <div class="nexo-brand" id="brand-logo">
+          <!-- Technological SVG Symbol -->
+          <svg class="nexo-symbol" viewBox="0 0 40 40" width="36" height="36" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="20,2 36,11 36,29 20,38 4,29 4,11" stroke="#00e676" stroke-width="2" fill="#0b171f" opacity="0.9" />
+            <polygon points="20,8 30,14 30,26 20,32 10,26 10,14" stroke="#00e676" stroke-width="1.2" stroke-dasharray="2 2" fill="none" opacity="0.6" />
+            <circle cx="20" cy="20" r="4.5" fill="#00e676" />
+            <circle cx="20" cy="20" r="7" stroke="#00e676" stroke-width="1" opacity="0.4" />
+            <line x1="20" y1="2" x2="20" y2="15" stroke="#00e676" stroke-width="1.5" />
+            <line x1="36" y1="29" x2="24" y2="23" stroke="#00e676" stroke-width="1.5" />
+            <line x1="4" y1="29" x2="16" y2="23" stroke="#00e676" stroke-width="1.5" />
+          </svg>
+          <div class="brand-text">
+            <span class="nexo-title">NEXO</span>
+            <span class="nexo-subtitle">TERMINAL INTELLIGENCE</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="header-center">
+        <div class="status-badge" id="agent-status-badge">
+          <span class="status-dot"></span>
+          <span id="agent-status-text">LISTO</span>
+        </div>
+        <div class="workspace-pill" id="workspace-badge" title="Directorio de trabajo">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <span id="workspace-path">/Proyecto_Terminal</span>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <button class="mode-pill" id="quick-mode-btn" title="Cambiar modo de seguridad">
+          <span class="mode-icon">🛡️</span>
+          <span id="current-mode-label">APROBACIÓN</span>
+        </button>
+
+        <button class="provider-pill" id="quick-provider-btn" title="Configurar proveedor">
+          <span class="provider-dot"></span>
+          <span id="current-provider-label">Mock (Local)</span>
+        </button>
+
+        <button class="icon-btn" id="open-settings-btn" title="Configuración">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- NOTIFICATION & APPROVAL BANNER -->
+    <div id="pending-approval-banner" class="approval-banner hidden">
+      <div class="banner-content">
+        <span class="warning-icon">⚠</span>
+        <div class="banner-text">
+          <strong id="banner-action-title">Aprobación requerida</strong>
+          <span id="banner-action-desc">El agente solicita permiso para realizar una acción.</span>
+        </div>
+      </div>
+      <div class="banner-actions">
+        <button class="btn btn-sm btn-outline" id="banner-view-btn">Inspeccionar</button>
+        <button class="btn btn-sm btn-success" id="banner-approve-btn">Aprobar</button>
+        <button class="btn btn-sm btn-danger" id="banner-reject-btn">Rechazar</button>
+      </div>
+    </div>
+
+    <!-- MAIN WORKSPACE LAYOUT (TABS & PANELS) -->
+    <main class="nexo-main">
+
+      <!-- VIEW 1: AGENT & CHAT -->
+      <section id="view-agent" class="view-panel active">
+        <div class="agent-layout">
+          <!-- Left: Task & Progress Sidebar (hidden on mobile, expandable) -->
+          <aside class="agent-sidebar">
+            <div class="sidebar-header">
+              <span class="sidebar-title">Plan de Trabajo</span>
+              <span class="badge" id="task-status-badge">Sin tarea activa</span>
+            </div>
+            <div class="task-steps-container" id="task-steps-list">
+              <div class="empty-state">No hay tareas en ejecución. Envía una instrucción para comenzar.</div>
+            </div>
+            <div class="sidebar-footer">
+              <span class="footer-label">Archivos afectados:</span>
+              <div class="affected-files-list" id="affected-files-list">
+                <span class="text-dim">Ninguno</span>
+              </div>
+            </div>
+          </aside>
+
+          <!-- Center: Chat Conversation -->
+          <div class="chat-container">
+            <div class="chat-messages" id="chat-messages">
+              <!-- Welcome Message -->
+              <div class="message assistant">
+                <div class="message-header">
+                  <span class="message-author">NEXO TERMINAL</span>
+                  <span class="message-time">Ahora</span>
+                </div>
+                <div class="message-body">
+                  <p>Bienvenido al entorno de desarrollo <strong>NEXO Terminal</strong> para Android y Termux.</p>
+                  <p>Estoy listo para analizar el proyecto, programar componentes, ejecutar comandos autorizados y gestionar tu repositorio Git.</p>
+                  <div class="quick-prompts">
+                    <button class="chip" data-prompt="Inspecciona la estructura del proyecto y enumera los módulos principales">🔍 Inspeccionar proyecto</button>
+                    <button class="chip" data-prompt="Consulta el estado de Git y las ramas disponibles">🌿 Ver Git Status</button>
+                    <button class="chip" data-prompt="Ejecuta la suite de pruebas del proyecto">⚡ Ejecutar pruebas</button>
+                    <button class="chip" data-prompt="Muestra qué proveedores de IA están disponibles">🤖 Listar proveedores</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Chat Input Area -->
+            <div class="chat-input-wrapper">
+              <div class="chat-toolbar">
+                <div class="effort-selector">
+                  <span class="toolbar-label">Esfuerzo:</span>
+                  <button class="effort-chip" data-effort="LOW" title="Ejecución directa y rápida">LOW</button>
+                  <button class="effort-chip active" data-effort="MEDIUM" title="Plan detallado y verificación">MEDIUM</button>
+                  <button class="effort-chip" data-effort="MAX" title="Análisis exhaustivo, pruebas y auto-corrección">MAX</button>
+                </div>
+                <div class="toolbar-info">
+                  <span id="active-model-tag" class="model-tag">nexo-codex-v1</span>
+                </div>
+              </div>
+
+              <form id="chat-form" class="chat-input-box">
+                <textarea id="chat-input" placeholder="Escribe una instrucción para NEXO (ej. 'Agrega un endpoint para listar tareas')..." rows="2"></textarea>
+                <div class="input-actions">
+                  <button type="button" class="btn-circle btn-stop hidden" id="stop-gen-btn" title="Detener generación">■</button>
+                  <button type="submit" class="btn-circle btn-send" id="send-msg-btn" title="Enviar instrucción">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 2: FILESYSTEM EXPLORER -->
+      <section id="view-files" class="view-panel">
+        <div class="files-layout">
+          <div class="files-sidebar">
+            <div class="files-toolbar">
+              <span class="panel-heading">Explorador</span>
+              <div class="files-actions">
+                <button class="btn-icon-sm" id="new-file-btn" title="Nuevo archivo">📄+</button>
+                <button class="btn-icon-sm" id="new-folder-btn" title="Nueva carpeta">📁+</button>
+                <button class="btn-icon-sm" id="refresh-files-btn" title="Actualizar">🔄</button>
+              </div>
+            </div>
+            <div class="search-box">
+              <input type="text" id="fs-search-input" placeholder="Buscar en archivos (grep)...">
+              <button id="fs-search-btn" class="btn-sm btn-outline">Buscar</button>
+            </div>
+            <div class="files-tree" id="files-tree-list">
+              <!-- Loaded dynamically -->
+            </div>
+          </div>
+
+          <div class="file-preview-area">
+            <div class="file-preview-header">
+              <div class="file-meta">
+                <span id="preview-file-name" class="font-bold">Ningún archivo seleccionado</span>
+                <span id="preview-file-details" class="text-dim"></span>
+              </div>
+              <div class="file-preview-actions">
+                <button class="btn btn-sm btn-outline" id="save-file-btn">Guardar</button>
+                <button class="btn btn-sm btn-outline text-danger" id="delete-file-btn">Eliminar</button>
+              </div>
+            </div>
+            <div class="file-editor-container">
+              <textarea id="code-editor-area" placeholder="Selecciona un archivo para ver o editar su contenido..." spellcheck="false"></textarea>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 3: CODE DIFF & VERSION REVIEW -->
+      <section id="view-diff" class="view-panel">
+        <div class="diff-container">
+          <div class="diff-header">
+            <div class="diff-info">
+              <span class="diff-title">Comparación de Versiones</span>
+              <span class="diff-file-tag" id="diff-file-name">Sin propuesta activa</span>
+              <span class="diff-stats" id="diff-stats-badge">
+                <span class="stat-add" id="stat-add">+0</span>
+                <span class="stat-del" id="stat-del">-0</span>
+              </span>
+            </div>
+            <div class="diff-controls">
+              <div class="view-toggle">
+                <button class="toggle-btn active" id="diff-unified-toggle">Unificado</button>
+                <button class="toggle-btn" id="diff-split-toggle">Dividido</button>
+              </div>
+              <button class="btn btn-sm btn-outline text-danger" id="diff-reject-btn">Rechazar</button>
+              <button class="btn btn-sm btn-success" id="diff-accept-btn">Aceptar Cambios</button>
+              <button class="btn btn-sm btn-outline" id="diff-rollback-btn" title="Revertir a versión anterior guardada">Revertir (Backup)</button>
+            </div>
+          </div>
+
+          <div id="diff-conflict-alert" class="conflict-alert hidden">
+            <span>⚠ ADVERTENCIA DE CONFLICTO: El archivo en disco cambió desde que se preparó esta propuesta.</span>
+          </div>
+
+          <div class="diff-viewport" id="diff-viewport">
+            <div class="empty-state">No hay cambios pendientes de revisión. Cuando el agente o tú propongan modificaciones, verás la comparación exacta aquí con adiciones en verde (+) y eliminaciones en rojo (-).</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 4: TERMINAL & COMMAND RUNNER -->
+      <section id="view-terminal" class="view-panel">
+        <div class="terminal-layout">
+          <div class="terminal-header">
+            <div class="terminal-title">
+              <span class="prompt-symbol">&gt;_</span>
+              <span>CONSOLA TERMUX DE COMANDOS</span>
+            </div>
+            <div class="terminal-actions">
+              <span id="active-processes-badge" class="badge">0 procesos activos</span>
+              <button class="btn btn-sm btn-outline text-danger" id="kill-process-btn">Detener Proceso (SIGTERM)</button>
+              <button class="btn btn-sm btn-outline" id="clear-term-btn">Limpiar</button>
+            </div>
+          </div>
+
+          <div class="terminal-body" id="terminal-output">
+            <div class="term-line info-line">[NEXO Terminal Engine listo. Entorno Termux / Android verificado.]</div>
+            <div class="term-line info-line">[Escribe comandos abajo o deja que el agente ejecute tareas autorizadas.]</div>
+          </div>
+
+          <form id="terminal-form" class="terminal-input-bar">
+            <span class="term-prompt">user@nexo:~$</span>
+            <input type="text" id="terminal-cmd-input" placeholder="Comando (ej. npm test, git status, ls -la)..." autocomplete="off" spellcheck="false">
+            <button type="submit" class="btn btn-sm btn-primary">Ejecutar</button>
+          </form>
+        </div>
+      </section>
+
+      <!-- VIEW 5: GIT & GITHUB -->
+      <section id="view-git" class="view-panel">
+        <div class="git-layout">
+          <div class="git-header">
+            <div class="git-repo-info">
+              <span class="git-branch-tag">🌿 <span id="git-current-branch">main</span></span>
+              <span class="git-sync-status" id="git-sync-status">Sincronizado</span>
+            </div>
+            <div class="git-actions">
+              <button class="btn btn-sm btn-outline" id="git-refresh-btn">Actualizar</button>
+              <button class="btn btn-sm btn-outline" id="git-new-branch-btn">+ Nueva Rama</button>
+              <button class="btn btn-sm btn-success" id="github-push-btn">Publicar en GitHub</button>
+            </div>
+          </div>
+
+          <div class="git-body">
+            <!-- Staged & Modified Files -->
+            <div class="git-section">
+              <div class="section-title-bar">
+                <span>Archivos modificados</span>
+                <button class="btn-link" id="git-stage-all-btn">Preparar todo (Stage all)</button>
+              </div>
+              <div class="git-files-list" id="git-changes-list">
+                <div class="empty-state">No hay cambios en el repositorio.</div>
+              </div>
+
+              <!-- Commit Form -->
+              <div class="commit-box">
+                <input type="text" id="git-commit-msg" placeholder="Mensaje del commit (ej. 'feat: implementa autenticación')...">
+                <button class="btn btn-primary" id="git-commit-btn">Crear Commit</button>
+              </div>
+            </div>
+
+            <!-- Commit History Log -->
+            <div class="git-section">
+              <div class="section-title-bar">
+                <span>Historial de Commits</span>
+              </div>
+              <div class="git-log-list" id="git-log-list">
+                <!-- Loaded dynamically -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 6: SECURITY & PERMISSIONS -->
+      <section id="view-security" class="view-panel">
+        <div class="security-layout">
+          <div class="security-card">
+            <h3 class="card-title">Modo de Seguridad del Agente</h3>
+            <p class="card-desc">Controla qué operaciones puede realizar el agente sin requerir aprobación explícita.</p>
+            <div class="mode-options">
+              <label class="mode-radio">
+                <input type="radio" name="sec-mode" value="read-only">
+                <div class="radio-card">
+                  <span class="radio-title">Lectura Estricta</span>
+                  <span class="radio-desc">Solo puede examinar archivos y analizar. No puede escribir ni ejecutar comandos.</span>
+                </div>
+              </label>
+
+              <label class="mode-radio">
+                <input type="radio" name="sec-mode" value="approval" checked>
+                <div class="radio-card">
+                  <span class="radio-title">Aprobación Previa (Recomendado)</span>
+                  <span class="radio-desc">Prepara cambios y comandos, pero requiere tu confirmación antes de ejecutarlos.</span>
+                </div>
+              </label>
+
+              <label class="mode-radio">
+                <input type="radio" name="sec-mode" value="authorized">
+                <div class="radio-card">
+                  <span class="radio-title">Ejecución Autorizada</span>
+                  <span class="radio-desc">Ejecuta automáticamente dentro del espacio de trabajo y los límites asignados.</span>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div class="security-card">
+            <h3 class="card-title">Permisos Granulares</h3>
+            <div class="granular-switches" id="granular-switches-list">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+
+          <div class="security-card">
+            <h3 class="card-title">Registro de Auditoría de Seguridad</h3>
+            <div class="audit-log-container" id="audit-logs-list">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 7: PROVIDERS CONFIGURATION -->
+      <section id="view-settings" class="view-panel">
+        <div class="settings-layout">
+          <div class="settings-card">
+            <div class="card-header-flex">
+              <div>
+                <h3 class="card-title">Proveedores de Inteligencia Artificial</h3>
+                <p class="card-desc">Configura APIs compatibles con OpenAI, Ollama local o remoto, o endpoints personalizados.</p>
+              </div>
+              <button class="btn btn-primary" id="add-provider-btn">+ Añadir Proveedor</button>
+            </div>
+
+            <div class="providers-table" id="providers-list">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+
+          <div class="settings-card">
+            <h3 class="card-title">Configuración de Entorno Termux</h3>
+            <div class="form-group">
+              <label>Directorio de Trabajo Autorizado:</label>
+              <input type="text" id="setting-workspace-root" readonly>
+            </div>
+            <div class="form-group">
+              <label>Modo de Esfuerzo Predeterminado:</label>
+              <select id="setting-default-effort">
+                <option value="LOW">LOW — Directo y rápido</option>
+                <option value="MEDIUM" selected>MEDIUM — Plan y verificación</option>
+                <option value="MAX">MAX — Análisis exhaustivo y corrección</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- MOBILE BOTTOM NAVIGATION (OPTIMIZED FOR ANDROID TOUCH) -->
+    <nav class="nexo-bottom-nav">
+      <button class="nav-item active" data-view="view-agent">
+        <span class="nav-icon">🤖</span>
+        <span class="nav-label">Agente</span>
+      </button>
+      <button class="nav-item" data-view="view-files">
+        <span class="nav-icon">📁</span>
+        <span class="nav-label">Archivos</span>
+      </button>
+      <button class="nav-item" data-view="view-diff">
+        <span class="nav-icon">🔀</span>
+        <span class="nav-label">Diferencias</span>
+      </button>
+      <button class="nav-item" data-view="view-terminal">
+        <span class="nav-icon">⚡</span>
+        <span class="nav-label">Terminal</span>
+      </button>
+      <button class="nav-item" data-view="view-git">
+        <span class="nav-icon">🌿</span>
+        <span class="nav-label">Git</span>
+      </button>
+      <button class="nav-item" data-view="view-security">
+        <span class="nav-icon">🛡️</span>
+        <span class="nav-label">Seguridad</span>
+      </button>
+    </nav>
+
+    <!-- MODAL: ADD / EDIT PROVIDER -->
+    <div id="provider-modal" class="modal-overlay hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="provider-modal-title">Configurar Proveedor</h3>
+          <button class="modal-close-btn" id="close-provider-modal">&times;</button>
+        </div>
+        <form id="provider-form" class="modal-body">
+          <input type="hidden" id="provider-id-input">
+          <div class="form-group">
+            <label>Nombre del Proveedor:</label>
+            <input type="text" id="provider-name-input" placeholder="ej. DeepSeek Coder" required>
+          </div>
+          <div class="form-group">
+            <label>Tipo de API:</label>
+            <select id="provider-type-input">
+              <option value="openai">OpenAI Compatible (DeepSeek, Groq, OpenRouter, vLLM)</option>
+              <option value="ollama">Ollama (Local / Remoto)</option>
+              <option value="mock">Simulador Local (Offline)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>URL Base:</label>
+            <input type="url" id="provider-url-input" placeholder="https://api.openai.com/v1" required>
+          </div>
+          <div class="form-group">
+            <label>Clave API (oculta y protegida):</label>
+            <input type="password" id="provider-key-input" placeholder="sk-...">
+          </div>
+          <div class="form-group">
+            <label>Modelo:</label>
+            <input type="text" id="provider-model-input" placeholder="gpt-4o / deepseek-coder / qwen2.5-coder:7b" required>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline" id="test-modal-provider-btn">Probar Conexión</button>
+            <button type="submit" class="btn btn-success">Guardar Proveedor</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL: GITHUB PUSH PREVIEW -->
+    <div id="github-push-modal" class="modal-overlay hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Resumen de Publicación en GitHub</h3>
+          <button class="modal-close-btn" id="close-github-modal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p>Revisa los cambios antes de publicar en el repositorio remoto:</p>
+          <div class="push-summary-box" id="push-summary-content">
+            <!-- Dynamic summary -->
+          </div>
+          <div id="push-secret-warning" class="conflict-alert hidden">
+            <span>⚠ ATENCIÓN: El escáner detectó posibles secretos o claves. La publicación se bloqueará automáticamente.</span>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" id="cancel-push-btn">Cancelar</button>
+          <button type="button" class="btn btn-success" id="confirm-push-btn">Confirmar y Publicar</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
