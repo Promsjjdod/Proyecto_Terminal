@@ -56,8 +56,9 @@ multimodelo autónomo.
 - **UX estilo Codex**: encabezado profesional (logotipo, regla doble,
   modelo/permisos/red y accesos rápidos), menú por secciones (`/menu`),
   caja de fases del ciclo (PLAN → EJECUTAR → VERIFICAR → EXPORTAR) con barra
-  de progreso, prompt `nexo@termux ❯` y visor de código con resaltado de
-  sintaxis y números de línea (`/view`).
+  de progreso, prompt `nexo@termux ❯`, visor de código con resaltado de
+  sintaxis y números de línea (`/view`), y diffs numerados inmediatamente
+  después de cada escritura verificada del agente.
 - **Tool calling nativo**: con proveedores compatibles con OpenAI
   (CleanAPIs, Groq, OpenRouter…) el agente envía el esquema de herramientas
   y ejecuta llamadas estructuradas reales (`tool_calls` con sus
@@ -115,7 +116,7 @@ Para desarrollar:
 
 ```bash
 python -m pip install -r requirements-dev.txt
-python -m pytest tests/        # 316 pruebas, proveedores simulados
+python -m pytest tests/        # 317 pruebas, proveedores simulados
 ```
 
 ## Inicio rápido

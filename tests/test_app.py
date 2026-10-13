@@ -123,6 +123,17 @@ def test_agent_change_summary_uses_net_applied_diff(app):
     assert summary["files"][0]["path"] == "cambio.py"
 
 
+def test_agent_renders_verified_file_diff_immediately(app):
+    result = app.catalog.execute("create_file", {
+        "path": "live.py", "content": "print('visible')\n"
+    })
+    assert result.ok and "diff" in result.data
+    app._on_agent_event("tool_result", result)
+    output = out(app)
+    assert "Cambio aplicado y verificado" in output
+    assert "live.py" in output and "print('visible')" in output
+
+
 def test_agent_change_summary_omits_created_then_deleted_file(app):
     app.catalog.reset_task_tracking()
     assert app.catalog.execute("create_file", {

@@ -327,7 +327,8 @@ class ToolCatalog:
             if backup and self.memory:
                 self.memory.record_file_change(rel, tool, backup)
             return ToolResult(True, f"OK: {report.summary()}", action=tool,
-                              data={"path": rel, "added": d.added, "removed": d.removed})
+                              data={"path": rel, "added": d.added, "removed": d.removed,
+                                    "diff": change.diff(context=3)})
         self._log(tool, rel, report.error, success=False)
         return ToolResult(False, f"La edición NO se aplicó (sin cambios parciales).\n{report.summary()}",
                           action=tool)
@@ -351,7 +352,7 @@ class ToolCatalog:
             if self.memory:
                 self.memory.record_file_change(rel, "delete", report.backups.get(rel, ""))
             return ToolResult(True, f"OK: '{rel}' eliminado (recuperable con undo_file).",
-                              action="delete_file")
+                              action="delete_file", data={"diff": change.diff(context=3)})
         return ToolResult(False, f"No se pudo eliminar '{rel}': {report.error}",
                           action="delete_file")
 

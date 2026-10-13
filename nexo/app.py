@@ -41,7 +41,7 @@ from nexo.permissions.paths import PathGuard, PathViolation
 from nexo.providers.base import ChatMessage, ProviderError
 from nexo.providers.registry import PROVIDER_TYPES, ProviderRegistry
 from nexo.security.secrets import SecretStore, mask_secret
-from nexo.tools.catalog import ToolCatalog
+from nexo.tools.catalog import ToolCatalog, ToolResult
 from nexo.tools.executor import CommandExecutor
 from nexo.providers.presets import PRESETS, capabilities_from_meta, normalize_base_url
 from nexo.tools.exporter import Exporter
@@ -301,8 +301,16 @@ class NexoApp:
     def _on_model_delta(self, delta: str) -> None:
         self.ui.stream_write(delta)
 
-    def _on_agent_event(self, kind: str, message: str) -> None:
+    def _on_agent_event(self, kind: str, message: object) -> None:
         self.ui.stream_end()  # corta el streaming anterior antes del evento
+        if kind == "tool_result":
+            if isinstance(message, ToolResult) and message.ok:
+                diff = message.data.get("diff")
+                if diff is not None:
+                    self.ui.success(f"Cambio aplicado y verificado: {diff.path}")
+                    self.ui.render_diff(diff, max_lines=160)
+            return
+        message = str(message)
         if kind == "iteration":
             self.ui.muted(f"[{message}]")
         elif kind == "tool":

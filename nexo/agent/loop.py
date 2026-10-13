@@ -18,7 +18,7 @@ import json
 import re
 import time
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from nexo.agent.prompts import build_context, build_system_prompt
 from nexo.config.settings import AgentLimits
@@ -98,7 +98,7 @@ class Agent:
         memory: Memory,
         limits: AgentLimits,
         on_delta: Optional[Callable[[str], None]] = None,
-        on_event: Optional[Callable[[str, str], None]] = None,
+        on_event: Optional[Callable[[str, Any], None]] = None,
         use_native_tools: bool = True,
     ):
         self.registry = registry
@@ -222,6 +222,7 @@ class Agent:
                 continue
 
             result: ToolResult = self.catalog.execute(action, args)
+            self.on_event("tool_result", result)
             tool_log.append((action, result.ok))
             self.memory.log_operation(f"tool:{action}",
                                       str(args.get("path") or args.get("command") or "")[:200],
@@ -397,6 +398,7 @@ class Agent:
                     tools_executed += 1
                     if name == "export_file":
                         self.on_event("phase", "EXPORTAR")
+                self.on_event("tool_result", result)
                 tool_log.append((name, result.ok))
                 self.memory.log_operation(
                     f"tool:{name}",
