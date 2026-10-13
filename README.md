@@ -71,7 +71,13 @@ multimodelo autónomo.
   verificación por relectura. Si falta el permiso de almacenamiento,
   explica `termux-setup-storage` (sin root).
 - **UI adaptada al móvil**: logotipo ASCII responsive, paneles estrechos,
-  colores semánticos, salida sin color en terminales que no lo soportan.
+  colores semánticos, salida sin color en terminales que no lo soportan. Al
+  iniciar una sesión interactiva limpia solo la pantalla visible del terminal;
+  no borra ni altera el historial persistente de Termux.
+- **Resumen verificable por tarea**: al terminar, muestra el total neto de
+  archivos creados, modificados o eliminados y líneas añadidas/eliminadas,
+  calculado comparando el contenido antes y después de los cambios aplicados.
+  También informa cuántas herramientas tuvieron éxito o error.
 - **Claves protegidas**: las API keys viven en `~/.nexo/secrets.json` con
   permisos `0600`, nunca en el repo, los logs ni la salida (redacción
   automática de patrones conocidos).
@@ -109,7 +115,7 @@ Para desarrollar:
 
 ```bash
 python -m pip install -r requirements-dev.txt
-python -m pytest tests/        # 233 pruebas, proveedores simulados
+python -m pytest tests/        # 316 pruebas, proveedores simulados
 ```
 
 ## Inicio rápido

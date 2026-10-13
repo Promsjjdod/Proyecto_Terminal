@@ -156,7 +156,7 @@ class Agent:
         if conversation_id and self.memory.conversation_exists(conversation_id):
             self.memory.add_message(conversation_id, "user", user_text)
 
-        self.catalog.file_ops_count = 0
+        self.catalog.reset_task_tracking()
         plan: List[str] = []
         tool_log: List[Tuple[str, bool]] = []
         last_text = ""
@@ -308,7 +308,7 @@ class Agent:
             self.memory.add_message(conversation_id, "user", user_text)
 
         schema = openai_tools_schema()
-        self.catalog.file_ops_count = 0
+        self.catalog.reset_task_tracking()
         plan: List[str] = []
         tool_log: List[Tuple[str, bool]] = []
         tools_executed = 0

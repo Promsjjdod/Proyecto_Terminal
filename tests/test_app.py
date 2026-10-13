@@ -10,6 +10,8 @@ from rich.console import Console
 
 from nexo.app import NexoApp
 from nexo.config.settings import AgentLimits, Config, ProviderConfig
+from nexo.permissions.manager import OperationKind
+from nexo.tools.executor import CommandResult
 from tests.conftest import FakeProvider
 
 
@@ -69,6 +71,16 @@ def test_unknown_command(app):
     assert "desconocido" in out(app)
 
 
+def test_interactive_start_clears_visible_terminal(app, monkeypatch):
+    terminal_output = io.StringIO()
+    app.interactive = True
+    app.ui.console = Console(file=terminal_output, width=72, force_terminal=True)
+    monkeypatch.setattr(app, "_read_command_line", lambda: (_ for _ in ()).throw(EOFError()))
+    monkeypatch.setattr(app, "_shutdown", lambda: None)
+    app.run()
+    assert "\x1b[2J" in terminal_output.getvalue()
+
+
 def test_workspace_show(app, workspace):
     app.dispatch("/workspace")
     assert workspace in out(app).replace('\n', '')
@@ -93,6 +105,53 @@ def test_files_listing(app):
     app.dispatch("/files sub")
     texto = out(app)
     assert os.path.join("sub", "carpeta.txt") in texto or "carpeta.txt" in texto
+
+
+def test_agent_change_summary_uses_net_applied_diff(app):
+    app.fs.write_text("cambio.py", "conservar\nviejo\n")
+    app.catalog.reset_task_tracking()
+    result = app.catalog.execute("write_file", {
+        "path": "cambio.py", "content": "conservar\nnuevo\n"
+    })
+    assert result.ok
+    summary = app.catalog.task_change_summary()
+    assert summary["created"] == 0
+    assert summary["modified"] == 1
+    assert summary["deleted"] == 0
+    assert summary["added"] == 1
+    assert summary["removed"] == 1
+    assert summary["files"][0]["path"] == "cambio.py"
+
+
+def test_agent_change_summary_omits_created_then_deleted_file(app):
+    app.catalog.reset_task_tracking()
+    assert app.catalog.execute("create_file", {
+        "path": "temporal.txt", "content": "línea\n"
+    }).ok
+    app.permissions.grant(OperationKind.DELETE_FILE, "temporal.txt")
+    assert app.catalog.execute("delete_file", {"path": "temporal.txt"}).ok
+    summary = app.catalog.task_change_summary()
+    assert summary["files"] == []
+    assert summary["created"] == summary["modified"] == summary["deleted"] == 0
+
+
+def test_agent_summary_records_test_runner_result(app, monkeypatch):
+    monkeypatch.setattr(app.executor, "run", lambda command, timeout=None: CommandResult(
+        command=command, exit_code=0, stdout="2 passed", authorized=True))
+    app.catalog.reset_task_tracking()
+    result = app.catalog.execute("run_command", {"command": "python -m pytest -q"})
+    assert result.ok
+    tests = app.catalog.task_change_summary()["tests"]
+    assert tests == [{"runner": "pytest", "exit_code": 0,
+                      "timed_out": False, "authorized": True}]
+
+
+def test_run_command_tool_reports_nonzero_exit_as_failure(app, monkeypatch):
+    monkeypatch.setattr(app.executor, "run", lambda command, timeout=None: CommandResult(
+        command=command, exit_code=2, stderr="falló", authorized=True))
+    result = app.catalog.execute("run_command", {"command": "python -m pytest"})
+    assert not result.ok
+    assert "código=2" in result.output
 
 
 # ------------------------------------------------------- flujo create/diff/apply/undo

@@ -144,6 +144,30 @@ def test_streaming_writes_plain_text_without_markup():
     assert "[bold]no-marcado[/bold]" in out   # el markup del modelo NO se interpreta
 
 
+def test_task_summary_renders_real_file_and_line_counts():
+    ui, buf = make_ui(48, color=False)
+    ui.task_summary({
+        "created": 1, "modified": 1, "deleted": 0,
+        "added": 4, "removed": 2,
+        "tests": [
+            {"runner": "pytest", "exit_code": 0, "timed_out": False,
+             "authorized": True},
+            {"runner": "pytest", "exit_code": 1, "timed_out": False,
+             "authorized": True},
+        ],
+        "files": [
+            {"path": "nuevo.py", "kind": "creado", "added": 3, "removed": 0},
+            {"path": "modulo.py", "kind": "modificado", "added": 1, "removed": 2},
+        ],
+    }, [("write_file", True), ("run_command", False)])
+    output = buf.getvalue()
+    assert "1 creados" in output and "1 modificados" in output
+    assert "+4 añadidas" in output and "−2 eliminadas" in output
+    assert "nuevo.py" in output and "modulo.py" in output
+    assert "Pruebas detectadas: 1 correctas, 1 fallidas" in output
+    assert "1 correctas, 1 con error" in output
+
+
 def test_spinner_disabled_without_animation():
     ui, buf = make_ui(80)
     with ui.spinner("trabajando…"):

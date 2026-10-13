@@ -195,6 +195,52 @@ class UI:
                 + (f"; {summary['conflicts']} conflicto(s)" if summary.get("conflicts") else "")
             )
 
+    def task_summary(self, summary: Dict[str, object],
+                     tool_log: Optional[List[tuple]] = None) -> None:
+        """Muestra métricas netas derivadas de los cambios aplicados en disco."""
+        files = summary.get("files", [])
+        files = files if isinstance(files, list) else []
+        lines = [
+            (f"Archivos: {summary.get('created', 0)} creados, "
+             f"{summary.get('modified', 0)} modificados, "
+             f"{summary.get('deleted', 0)} eliminados."),
+            (f"Líneas netas: +{summary.get('added', 0)} añadidas, "
+             f"−{summary.get('removed', 0)} eliminadas."),
+        ]
+        for item in files[:8]:
+            if isinstance(item, dict):
+                lines.append(f"{item.get('kind', 'cambiado')}: {item.get('path', '?')} "
+                             f"(+{item.get('added', 0)} / −{item.get('removed', 0)})")
+        if len(files) > 8:
+            lines.append(f"… y {len(files) - 8} archivo(s) más.")
+        tests = summary.get("tests", [])
+        if isinstance(tests, list) and tests:
+            passed = sum(1 for test in tests if isinstance(test, dict)
+                         and test.get("authorized") and test.get("exit_code") == 0
+                         and not test.get("timed_out"))
+            failed = len(tests) - passed
+            lines.append(f"Pruebas detectadas: {passed} correctas, {failed} fallidas.")
+            for test in tests[:3]:
+                if not isinstance(test, dict):
+                    continue
+                status = ("OK" if test.get("authorized") and test.get("exit_code") == 0
+                          and not test.get("timed_out") else
+                          "timeout" if test.get("timed_out") else
+                          f"falló (código {test.get('exit_code')})")
+                lines.append(f"{test.get('runner', 'pruebas')}: {status}.")
+        else:
+            lines.append("Pruebas: no registradas por las herramientas del agente.")
+        if tool_log:
+            succeeded = sum(1 for _, ok in tool_log if ok)
+            failed = len(tool_log) - succeeded
+            lines.append(f"Herramientas: {succeeded} correctas, {failed} con error.")
+            if any(action == "run_command" for action, _ in tool_log):
+                lines.append("Nota: cambios hechos directamente por comandos shell pueden "
+                             "no estar incluidos en el conteo neto de archivos.")
+        self.panel("Resultado de la tarea", "\n".join(lines),
+                   style=THEME.success if not (tool_log and any(not ok for _, ok in tool_log))
+                   else THEME.warning)
+
     # -------------------------------------------------------------------- varios
     def banner(self, logo: str, tagline: str, subtitle: str) -> None:
         logo_text = Text(logo.rstrip("\n"), style=THEME.logo)

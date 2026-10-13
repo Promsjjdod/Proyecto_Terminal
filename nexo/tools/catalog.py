@@ -14,6 +14,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List
 
+from nexo.editor.diff import compute_diff
 from nexo.editor.engine import ChangeSet, EditError, FileEditor
 from nexo.filesystem.ops import FileOpError, FilesystemOps
 from nexo.permissions.manager import PermissionManager
@@ -102,6 +103,58 @@ class ToolCatalog:
         self.max_read_chars = max_read_chars
         self.exporter = exporter
         self.file_ops_count = 0     # escrituras/borrados realizados en la tarea actual
+        self._task_file_changes: Dict[str, Dict[str, Any]] = {}
+        self._task_tests: List[Dict[str, Any]] = []
+
+    def reset_task_tracking(self) -> None:
+        """Inicia un registro efímero para calcular el cambio neto de una tarea."""
+        self.file_ops_count = 0
+        self._task_file_changes = {}
+        self._task_tests = []
+
+    def _record_file_change(self, change) -> None:
+        row = self._task_file_changes.get(change.rel)
+        if row is None:
+            row = {
+                "path": change.rel,
+                "before_exists": bool(change.existed),
+                "before_text": change.old_text,
+                "binary": bool(change.binary),
+            }
+            self._task_file_changes[change.rel] = row
+        row["after_exists"] = change.kind != "delete"
+        row["after_text"] = change.new_text
+        row["binary"] = row["binary"] or bool(change.binary)
+
+    def task_change_summary(self) -> Dict[str, Any]:
+        """Resume solo los cambios netos que efectivamente se aplicaron."""
+        files: List[Dict[str, Any]] = []
+        added = removed = created = modified = deleted = 0
+        for path, row in self._task_file_changes.items():
+            before_exists = row["before_exists"]
+            after_exists = row.get("after_exists", before_exists)
+            before_text, after_text = row.get("before_text"), row.get("after_text")
+            if not before_exists and not after_exists:
+                continue
+            if before_exists and after_exists and before_text == after_text and not row["binary"]:
+                continue
+            if not before_exists and after_exists:
+                created += 1
+                kind = "creado"
+            elif before_exists and not after_exists:
+                deleted += 1
+                kind = "eliminado"
+            else:
+                modified += 1
+                kind = "modificado"
+            diff = compute_diff(before_text, after_text, path, is_binary=row["binary"], context=0)
+            added += diff.added
+            removed += diff.removed
+            files.append({"path": path, "kind": kind,
+                          "added": diff.added, "removed": diff.removed})
+        return {"files": files, "created": created, "modified": modified,
+                "deleted": deleted, "added": added, "removed": removed,
+                "tests": list(self._task_tests)}
 
     # ------------------------------------------------------------------ dispatch
     def execute(self, name: str, args: Dict[str, Any]) -> ToolResult:
@@ -267,6 +320,7 @@ class ToolCatalog:
         rel = self.guard.rel(path)
         if report.success:
             self.file_ops_count += 1
+            self._record_file_change(change)
             d = change.diff(context=0)
             self._log(tool, rel, f"+{d.added} -{d.removed}", success=True)
             backup = report.backups.get(rel, "")
@@ -292,6 +346,7 @@ class ToolCatalog:
         rel = self.guard.rel(path)
         if report.success:
             self.file_ops_count += 1
+            self._record_file_change(change)
             self._log("delete_file", rel, "movido a papelera", success=True)
             if self.memory:
                 self.memory.record_file_change(rel, "delete", report.backups.get(rel, ""))
@@ -311,7 +366,22 @@ class ToolCatalog:
         decision = self.permissions.check_write(path, overwrite=True)
         if not decision.allowed:
             return self._denied("undo_file", decision.reason, path)
+        before = self.fs.read(path) if self.fs.exists(path) else None
         message = self.editor.undo(resolved)
+        after = self.fs.read(resolved)
+        rel = self.guard.rel(resolved)
+        row = self._task_file_changes.get(rel)
+        if row is None:
+            row = {
+                "path": rel,
+                "before_exists": before is not None,
+                "before_text": before.text if before and not before.binary else None,
+                "binary": bool((before and before.binary) or after.binary),
+            }
+            self._task_file_changes[rel] = row
+        row["after_exists"] = True
+        row["after_text"] = after.text if not after.binary else None
+        row["binary"] = row["binary"] or after.binary
         self._log("undo_file", path, message, success=True)
         return ToolResult(True, f"OK: {message}", action="undo_file")
 
@@ -343,7 +413,17 @@ class ToolCatalog:
         timeout = args.get("timeout")
         timeout = float(timeout) if timeout else None
         result = self.executor.run(command, timeout=timeout)
-        return ToolResult(result.ok or result.authorized, result.summary(),
+        lowered = command.lower()
+        runner = next((name for name in ("pytest", "unittest", "tox", "nox")
+                       if name in lowered), "")
+        if runner:
+            self._task_tests.append({
+                "runner": runner,
+                "exit_code": result.exit_code,
+                "timed_out": result.timed_out,
+                "authorized": result.authorized,
+            })
+        return ToolResult(result.ok, result.summary(),
                           action="run_command",
                           data={"exit_code": result.exit_code, "authorized": result.authorized})
 

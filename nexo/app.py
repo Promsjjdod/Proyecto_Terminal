@@ -328,6 +328,10 @@ class NexoApp:
     def run(self) -> int:
         """Bucle interactivo principal. Devuelve código de salida."""
         self._running = True
+        # Limpia únicamente el área visible del terminal; nunca modifica el
+        # historial persistente de Termux ni se emite en ejecuciones capturadas.
+        if self.interactive and self.ui.console.is_terminal:
+            self.ui.clear()
         self._print_banner()
         self._print_status()
         while self._running:
@@ -1538,6 +1542,7 @@ class NexoApp:
             (self.ui.success if outcome.success else self.ui.warn)(
                 ("Tarea terminada. " if outcome.success else "Tarea terminada con problemas. ") + meta)
             self.ui.panel("Resumen del agente", outcome.reply, style=THEME.success if outcome.success else THEME.warning)
+            self.ui.task_summary(self.catalog.task_change_summary(), outcome.tool_log)
             return
         if outcome.status == "necesita_usuario":
             if outcome.reply:
