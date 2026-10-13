@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Pruebas
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Datos privados de NEXO (configuración real, claves, base de datos)
+.nexo/
+config.json
+*.db
+*.sqlite3
+*.log
+
+# Secretos (patrones ANCLADOS a la raíz: no deben ignorar código fuente
+# como nexo/security/secrets.py)
+/.env
+/.env.*
+/*.pem
+/credentials*
+/secrets*
+
+# Sistema
+.DS_Store
+Thumbs.db
