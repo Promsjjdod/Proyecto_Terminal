@@ -124,14 +124,26 @@ def test_agent_change_summary_uses_net_applied_diff(app):
 
 
 def test_agent_renders_verified_file_diff_immediately(app):
+    app._on_agent_event("tool", {"action": "create_file", "path": "live.py"})
+    pending = out(app)
+    assert "en curso" in pending and "100%" not in pending
     result = app.catalog.execute("create_file", {
         "path": "live.py", "content": "print('visible')\n"
     })
     assert result.ok and "diff" in result.data
     app._on_agent_event("tool_result", result)
     output = out(app)
-    assert "Cambio aplicado y verificado" in output
+    assert "SAVE 100%" in output and "verificado en disco" in output
+    assert "LIVE CODE" in output and "strip:" in output
     assert "live.py" in output and "print('visible')" in output
+
+
+def test_startup_shows_session_dashboard(app):
+    app._print_status()
+    output = out(app)
+    assert "PANEL DE SESIÓN" in output
+    assert "ENGINE" in output and "WORKSPACE" in output
+    assert "no comprobada" in output
 
 
 def test_agent_change_summary_omits_created_then_deleted_file(app):

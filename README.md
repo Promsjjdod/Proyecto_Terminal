@@ -53,12 +53,12 @@ multimodelo autónomo.
   escaneo previo de secretos (`.env`, claves, tokens) y la CLI oficial `gh`.
 - **Memoria persistente (SQLite)**: conversaciones, tareas (con plan),
   auditoría de operaciones redactada (sin secretos) e historial de archivos.
-- **UX estilo Codex**: encabezado profesional (logotipo, regla doble,
-  modelo/permisos/red y accesos rápidos), menú por secciones (`/menu`),
-  caja de fases del ciclo (PLAN → EJECUTAR → VERIFICAR → EXPORTAR) con barra
-  de progreso, prompt `nexo@termux ❯`, visor de código con resaltado de
-  sintaxis y números de línea (`/view`), y diffs numerados inmediatamente
-  después de cada escritura verificada del agente.
+- **UX móvil del agente**: panel de sesión con motor, workspace, permisos y
+  estado de red, más toolbar contextual al escribir. El pipeline se presenta
+  en filas compactas (ANALIZAR → PLAN → WRITE → SAVE / CHECK → BUILD → RUN →
+  FIX → EXPORT); no estima porcentajes con iteraciones. Cada ruta muestra el guardado
+  en curso y solo marca 100 % tras verificación real; el diff numerado aparece
+  entonces junto al código añadido/eliminado.
 - **Tool calling nativo**: con proveedores compatibles con OpenAI
   (CleanAPIs, Groq, OpenRouter…) el agente envía el esquema de herramientas
   y ejecuta llamadas estructuradas reales (`tool_calls` con sus
@@ -116,7 +116,7 @@ Para desarrollar:
 
 ```bash
 python -m pip install -r requirements-dev.txt
-python -m pytest tests/        # 317 pruebas, proveedores simulados
+python -m pytest tests/        # 325 pruebas, proveedores simulados
 ```
 
 ## Inicio rápido

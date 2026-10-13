@@ -291,7 +291,9 @@ class FileEditor:
                 report.backups[change.rel] = str(backup)
 
         if change.kind == "delete":
-            self.fs.delete(change.path)
+            trash_path = self.fs.delete(change.path)
+            if verify and (change.path.exists() or not trash_path.exists()):
+                raise EditError(f"Verificación fallida al eliminar '{change.rel}'.", change.rel)
         elif change.binary:
             assert change.new_bytes is not None
             self.fs.write_atomic(change.path, change.new_bytes)

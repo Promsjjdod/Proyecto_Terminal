@@ -168,6 +168,39 @@ def test_task_summary_renders_real_file_and_line_counts():
     assert "1 correctas, 1 con error" in output
 
 
+def test_session_card_stacks_engine_and_workspace_for_phone():
+    ui, buf = make_ui(42, color=False)
+    ui.session_card([
+        ("ENGINE", "cleanapis/gemini-3.5-flash-lite"),
+        ("WORKSPACE", "/data/data/com.termux/files/home/project"),
+        ("RED", "no comprobada"),
+    ])
+    output = buf.getvalue()
+    assert "PANEL DE SESIÓN" in output or "SESIÓN NEXO" in output
+    assert "ENGINE" in output and "WORKSPACE" in output
+    assert "cleanapis/gemini-3.5-flash-lite" in output
+    assert "no comprobada" in output
+
+
+def test_file_operation_shows_percent_only_after_verification():
+    ui, buf = make_ui(48, color=False)
+    ui.file_operation("write_file", "src/main.py", "running")
+    in_progress = buf.getvalue()
+    assert "en curso" in in_progress and "100%" not in in_progress
+    ui.file_operation("write_file", "src/main.py", "verified")
+    assert "SAVE 100%" in buf.getvalue()
+    assert "verificado en disco" in buf.getvalue()
+
+
+def test_command_status_uses_real_exit_code():
+    ui, buf = make_ui(60, color=False)
+    ui.command_status("pytest", 0, authorized=True, timed_out=False)
+    ui.command_status("pytest", 1, authorized=True, timed_out=False)
+    output = buf.getvalue()
+    assert "pytest 100%" in output
+    assert "falló con código 1" in output
+
+
 def test_spinner_disabled_without_animation():
     ui, buf = make_ui(80)
     with ui.spinner("trabajando…"):

@@ -384,7 +384,15 @@ class ToolCatalog:
         row["after_text"] = after.text if not after.binary else None
         row["binary"] = row["binary"] or after.binary
         self._log("undo_file", path, message, success=True)
-        return ToolResult(True, f"OK: {message}", action="undo_file")
+        diff = compute_diff(
+            before.text if before and not before.binary else None,
+            after.text if not after.binary else None,
+            rel,
+            is_binary=bool((before and before.binary) or after.binary),
+            context=3,
+        )
+        return ToolResult(True, f"OK: {message}", action="undo_file",
+                          data={"path": rel, "diff": diff})
 
     def _tool_export_file(self, args: Dict[str, Any]) -> ToolResult:
         if self.exporter is None:
@@ -426,7 +434,8 @@ class ToolCatalog:
             })
         return ToolResult(result.ok, result.summary(),
                           action="run_command",
-                          data={"exit_code": result.exit_code, "authorized": result.authorized})
+                          data={"exit_code": result.exit_code, "authorized": result.authorized,
+                                "timed_out": result.timed_out, "command": command})
 
     def _tool_ask_user(self, args: Dict[str, Any]) -> ToolResult:
         question = str(args.get("question", "")).strip()
