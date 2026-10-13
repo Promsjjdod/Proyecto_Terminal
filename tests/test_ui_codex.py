@@ -58,7 +58,7 @@ def test_phase_tracker_transitions():
     tracker = PhaseTracker()
     assert tracker.set_phase("PLAN") is True
     assert tracker.set_phase("PLAN") is False          # no repinta si no cambia
-    assert tracker.set_phase("EJECUTAR") is True
+    assert tracker.set_phase("WRITE") is True
     assert tracker.done == ["PLAN"]
     assert tracker.set_phase("INVENTADA") is False
     tracker.set_progress(42)
@@ -71,9 +71,9 @@ def test_phase_tracker_transitions():
 
 def test_phase_pipeline_order_and_bar():
     tracker = PhaseTracker()
-    tracker.set_phase(STAGES[0])
+    tracker.set_phase("WRITE")
     pipeline = tracker.pipeline_text().plain
-    assert pipeline.startswith(":: ")
+    assert pipeline.startswith("› ")
     for stage in STAGES:
         assert stage in pipeline
     tracker.set_progress(50)
@@ -86,12 +86,36 @@ def test_phase_pipeline_order_and_bar():
 def test_phase_render_panel():
     ui, buf = make_ui(80)
     tracker = PhaseTracker()
-    tracker.set_phase("EJECUTAR")
-    tracker.set_progress(30)
+    tracker.set_phase("WRITE")
     tracker.render(ui)
     out = buf.getvalue()
-    assert "PLAN" in out and "EJECUTAR" in out and "VERIFICAR" in out
-    assert "30%" in out
+    assert "ANALIZAR" in out and "WRITE" in out and "CHECK" in out
+    assert "en curso" in out and "30%" not in out and "0%" not in out
+
+
+def test_task_completion_does_not_claim_code_verification():
+    tracker = PhaseTracker()
+    tracker.set_phase("CHECK")
+    tracker.set_progress(100, "tarea terminada")
+    status = tracker.bar_text().plain
+    assert "TAREA · completada · 100%" in status
+    assert "verificado" not in status
+
+
+def test_repeated_phase_restarts_after_previous_completion():
+    tracker = PhaseTracker()
+    tracker.set_phase("CHECK")
+    tracker.set_progress(100, "comando terminado")
+    assert tracker.set_phase("CHECK") is True
+    assert tracker.percent == 0
+    assert "100%" not in tracker.bar_text().plain
+
+
+def test_phase_pipeline_fits_narrow_phone_widths():
+    tracker = PhaseTracker()
+    for width in (32, 36, 40, 48):
+        lines = tracker.pipeline_text(width).plain.splitlines()
+        assert all(visible_len(line) <= width - 4 for line in lines), (width, lines)
 
 
 # --------------------------------------------------------------- diffs y leyenda

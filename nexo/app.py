@@ -41,7 +41,7 @@ from nexo.permissions.paths import PathGuard, PathViolation
 from nexo.providers.base import ChatMessage, ProviderError
 from nexo.providers.registry import PROVIDER_TYPES, ProviderRegistry
 from nexo.security.secrets import SecretStore, mask_secret
-from nexo.tools.catalog import ToolCatalog
+from nexo.tools.catalog import ToolCatalog, ToolResult
 from nexo.tools.executor import CommandExecutor
 from nexo.providers.presets import PRESETS, capabilities_from_meta, normalize_base_url
 from nexo.tools.exporter import Exporter
@@ -174,6 +174,7 @@ class NexoApp:
         self.pending_changes: Optional[ChangeSet] = None
         self.conversation_id: Optional[int] = None
         self._session: object = None
+        self._active_file_operation: Optional[tuple] = None
         self._running = False
 
     # ------------------------------------------------------------------ montaje
@@ -301,22 +302,85 @@ class NexoApp:
     def _on_model_delta(self, delta: str) -> None:
         self.ui.stream_write(delta)
 
-    def _on_agent_event(self, kind: str, message: str) -> None:
+    def _on_agent_event(self, kind: str, message: object) -> None:
         self.ui.stream_end()  # corta el streaming anterior antes del evento
+        if kind == "tool_result":
+            if not isinstance(message, ToolResult):
+                return
+            action = message.action
+            if action in {"create_file", "write_file", "edit_file", "delete_file", "undo_file", "export_file"}:
+                phase = ("EXPORT" if action == "export_file" else "SAVE") if message.ok else "FIX"
+                changed = self.phases.set_phase(phase)
+                if message.ok:
+                    self.phases.set_progress(100, "operación verificada")
+                if changed or message.ok:
+                    self.phases.render(self.ui)
+                active = self._active_file_operation
+                path = str(message.data.get("path") or
+                           (active[1] if active is not None else ""))
+                if path:
+                    self.ui.file_operation(action, path,
+                                           "verified" if message.ok else "failed")
+                self._active_file_operation = None
+                diff = message.data.get("diff")
+                if message.ok and diff is not None:
+                    self.ui.live_diff(diff, max_lines=160)
+            elif action == "run_command":
+                phase = "CHECK" if any(name in str(message.data.get("command", "")).lower()
+                                        for name in ("pytest", "unittest", "tox", "nox")) else "RUN"
+                if not message.ok:
+                    phase = "FIX"
+                changed = self.phases.set_phase(phase)
+                if message.ok:
+                    self.phases.set_progress(100, "comando terminado · código 0")
+                if changed or message.ok:
+                    self.phases.render(self.ui)
+                runner = next((name for name in ("pytest", "unittest", "tox", "nox")
+                               if name in str(message.data.get("command", "")).lower()), "")
+                self.ui.command_status(runner, message.data.get("exit_code"),
+                                       bool(message.data.get("authorized")),
+                                       bool(message.data.get("timed_out")))
+            return
         if kind == "iteration":
             self.ui.muted(f"[{message}]")
         elif kind == "tool":
-            self.ui.info(f"Herramienta: {message}")
+            event = message if isinstance(message, dict) else {"action": str(message)}
+            action = str(event.get("action", "herramienta"))
+            path = str(event.get("path", ""))
+            command = str(event.get("command", "")).lower()
+            phase = None
+            file_action = action in {"create_file", "write_file", "edit_file",
+                                     "delete_file", "undo_file", "export_file"}
+            if action in {"read_file", "list_dir", "search"}:
+                phase = "ANALIZAR"
+            elif file_action:
+                phase = "EXPORT" if action == "export_file" else "WRITE"
+                if path:
+                    self._active_file_operation = (action, path)
+            elif action == "run_command":
+                runner = next((name for name in ("pytest", "unittest", "tox", "nox")
+                               if name in command), "")
+                phase = "CHECK" if runner else "RUN"
+                self.ui.info(f"Ejecutando pruebas: {runner}" if runner
+                             else "Ejecutando comando autorizado")
+            else:
+                self.ui.info(f"Herramienta: {action}")
+            if phase and self.phases.set_phase(phase):
+                self.phases.render(self.ui)
+            if file_action and path:
+                self.ui.file_operation(action, path, "running")
         elif kind == "plan":
-            self.ui.text(message, style=THEME.warning)
+            self.ui.text(str(message), style=THEME.warning)
         elif kind == "warn":
-            self.ui.warn(message)
+            self.ui.warn(str(message))
         elif kind == "phase":
-            if self.phases.set_phase(message):
+            if self.phases.set_phase(str(message)):
                 self.phases.render(self.ui)
         elif kind == "progress":
             try:
-                self.phases.set_progress(int(message))
+                value = int(str(message))
+                self.phases.set_progress(value,
+                                         "tarea terminada" if value >= 100 else "")
             except ValueError:
                 return
             if self.phases.percent >= 100:
@@ -328,6 +392,10 @@ class NexoApp:
     def run(self) -> int:
         """Bucle interactivo principal. Devuelve código de salida."""
         self._running = True
+        # Limpia únicamente el área visible del terminal; nunca modifica el
+        # historial persistente de Termux ni se emite en ejecuciones capturadas.
+        if self.interactive and self.ui.console.is_terminal:
+            self.ui.clear()
         self._print_banner()
         self._print_status()
         while self._running:
@@ -380,7 +448,25 @@ class NexoApp:
                       f"<ansibrightblack>@{host}</ansibrightblack>"
                       f"<ansicyan> {os.path.basename(str(self.guard.workspace))} </ansicyan>"
                       f"<ansibrightred>❯ </ansibrightred>")
-        return (self._session.prompt(styled) or "").strip()  # type: ignore[union-attr]
+        return (self._session.prompt(styled, bottom_toolbar=self._bottom_toolbar) or "").strip()  # type: ignore[union-attr]
+
+    def _bottom_toolbar(self):
+        """Estado estable durante la escritura; contiene solo valores observados."""
+        from html import escape
+        from prompt_toolkit.formatted_text import HTML
+
+        provider = self.registry.active()
+        engine = (f"{provider.name}/{provider.model or '?'}" if provider
+                  else "sin motor")
+        phase = self.phases.current or "LISTO"
+        mode = self.permissions.mode
+        if self.ui.small_screen:
+            label = f"{phase} · {engine.split('/')[0]} · {mode}"
+        else:
+            workspace = os.path.basename(str(self.guard.workspace))
+            label = f"NEXO · {engine} · {workspace} · {phase} · {mode}"
+        return HTML("<style bg='ansibrightblack' fg='ansiwhite'> "
+                    + escape(label) + " </style>")
 
     def dispatch(self, line: str) -> None:
         """Ejecuta una línea: comando con '/' o instrucción natural."""
@@ -1521,6 +1607,7 @@ class NexoApp:
             self.conversation_id = self.memory.new_conversation(
                 text[:40], provider.name, provider.model)
         self.phases.reset()
+        self._active_file_operation = None
         self.ui.separator(f"agente · {provider.name}/{provider.model} · modo {self.permissions.mode}")
         self.ui.stream_start()
         outcome = self.agent.run(text, conversation_id=self.conversation_id)
@@ -1532,12 +1619,14 @@ class NexoApp:
                 f"{f', tarea #{outcome.task_id}' if outcome.task_id else ''}]")
         if outcome.status == "conversacion":
             # El texto ya se mostró por streaming; solo el meta.
+            self.phases.reset()
             self.ui.muted(meta)
             return
         if outcome.status == "terminada":
             (self.ui.success if outcome.success else self.ui.warn)(
                 ("Tarea terminada. " if outcome.success else "Tarea terminada con problemas. ") + meta)
             self.ui.panel("Resumen del agente", outcome.reply, style=THEME.success if outcome.success else THEME.warning)
+            self.ui.task_summary(self.catalog.task_change_summary(), outcome.tool_log)
             return
         if outcome.status == "necesita_usuario":
             if outcome.reply:
@@ -1573,19 +1662,17 @@ class NexoApp:
         provider = self.registry.active()
         provider_text = (f"{provider.name}/{provider.model or '?'}"
                          if provider else "SIN PROVEEDOR")
-        lines = [
-            f"Workspace : {self.guard.workspace}",
-            f"Proveedor : {provider_text}",
-            f"Permisos  : {self.permissions.mode}",
-            "Conexión  : sin comprobar (validá con /provider test; el arranque no "
-            "gasta tokens)",
-            f"Entorno   : {platform.describe()}",
+        fields = [
+            ("ENGINE", provider_text),
+            ("WORKSPACE", self.guard.workspace),
+            ("SESIÓN", f"permisos {self.permissions.mode} · {platform.describe()}"),
+            ("RED", "no comprobada · usa /provider test (el inicio no consume tokens)"),
         ]
         problems = self.config.validate()
         if problems:
-            lines.append("Avisos    : " + "; ".join(problems))
-        self.ui.panel("Estado", "\n".join(lines),
-                      style=THEME.success if provider else THEME.warning)
+            fields.append(("AVISOS", "; ".join(problems)))
+        self.ui.session_card(fields, title="PANEL DE SESIÓN · NEXO",
+                             style=THEME.success if provider else THEME.warning)
         if not provider:
             self.ui.info("Sin proveedor configurado: NEXO arranca igual. Incorporá uno "
                          "con /provider (menú interactivo, preset CleanAPIs incluido) o "

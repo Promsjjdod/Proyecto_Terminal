@@ -78,6 +78,55 @@ class UI:
                                  border_style=style, expand=True,
                                  padding=(0, 1) if not self.small_screen else (0, 0)))
 
+    def session_card(self, fields: Iterable[tuple], title: str = "SESIÓN NEXO",
+                     style: str = THEME.info) -> None:
+        """Tarjeta vertical de motor, workspace y estado, diseñada para móvil."""
+        body = Text()
+        for index, (label, value) in enumerate(fields):
+            if index:
+                body.append("\n")
+            body.append(str(label).upper(), style=f"bold {THEME.brand}")
+            body.append("\n  " if self.small_screen else "  │  ", style=THEME.muted)
+            body.append(str(value), style="")
+        self.console.print(Panel(body, title=title, title_align="left",
+                                 border_style=style, expand=True,
+                                 padding=(0, 1) if not self.small_screen else (0, 0)))
+
+    def file_operation(self, action: str, path: str, state: str) -> None:
+        """Muestra el ciclo de archivo; 100% se reserva para verificación real."""
+        labels = {
+            "create_file": "SAVE", "write_file": "SAVE", "edit_file": "SAVE",
+            "delete_file": "DELETE", "undo_file": "RESTORE", "export_file": "EXPORT",
+        }
+        label = labels.get(action, "FILE")
+        if state == "running":
+            text = Text.assemble(("▶ ", THEME.warning),
+                                 (f"{label} · {path} · en curso", THEME.warning))
+        elif state == "verified":
+            terminal = {
+                "delete_file": "eliminación verificada",
+                "export_file": "exportado y verificado",
+            }.get(action, "verificado en disco")
+            text = Text.assemble(("✔ ", THEME.success),
+                                 (f"{label} 100% · {path} · {terminal}", THEME.success))
+        else:
+            text = Text.assemble(("✖ ", THEME.error),
+                                 (f"{label} · {path} · no aplicado", THEME.error))
+        self._print(text)
+
+    def command_status(self, runner: str, exit_code: object, authorized: bool,
+                       timed_out: bool) -> None:
+        """Resume la finalización observada sin imprimir argumentos sensibles."""
+        label = f"CHECK · {runner}" if runner else "RUN · comando"
+        if timed_out:
+            self.error(f"{label} · tiempo agotado")
+        elif not authorized:
+            self.error(f"{label} · no autorizado")
+        elif exit_code == 0:
+            self.success(f"{label} 100% · terminó con código 0")
+        else:
+            self.error(f"{label} · falló con código {exit_code}")
+
     def kv(self, title: str, items: Iterable[object], style: str = THEME.info) -> None:
         """Panel de pares clave-valor (sustituye tablas en pantallas estrechas)."""
         lines: List[str] = []
@@ -160,6 +209,13 @@ class UI:
         if not diff.changed:
             self.muted("(sin cambios)")
 
+    def live_diff(self, diff: DiffResult, max_lines: int = 160) -> None:
+        """Vista de código en vivo tras guardar: estados y diff numerado real."""
+        self.console.print(Rule(title="LIVE CODE · GUARDADO VERIFICADO",
+                                style=THEME.brand))
+        self.diff_legend()
+        self.render_diff(diff, max_lines=max_lines)
+
     def _diff_line_text(self, line) -> Text:
         old_no = f"{line.old_no:>4}" if line.old_no is not None else "    "
         new_no = f"{line.new_no:>4}" if line.new_no is not None else "    "
@@ -194,6 +250,52 @@ class UI:
                 f"+{summary.get('added', 0)} / −{summary.get('removed', 0)} líneas"
                 + (f"; {summary['conflicts']} conflicto(s)" if summary.get("conflicts") else "")
             )
+
+    def task_summary(self, summary: Dict[str, object],
+                     tool_log: Optional[List[tuple]] = None) -> None:
+        """Muestra métricas netas derivadas de los cambios aplicados en disco."""
+        files = summary.get("files", [])
+        files = files if isinstance(files, list) else []
+        lines = [
+            (f"Archivos: {summary.get('created', 0)} creados, "
+             f"{summary.get('modified', 0)} modificados, "
+             f"{summary.get('deleted', 0)} eliminados."),
+            (f"Líneas netas: +{summary.get('added', 0)} añadidas, "
+             f"−{summary.get('removed', 0)} eliminadas."),
+        ]
+        for item in files[:8]:
+            if isinstance(item, dict):
+                lines.append(f"{item.get('kind', 'cambiado')}: {item.get('path', '?')} "
+                             f"(+{item.get('added', 0)} / −{item.get('removed', 0)})")
+        if len(files) > 8:
+            lines.append(f"… y {len(files) - 8} archivo(s) más.")
+        tests = summary.get("tests", [])
+        if isinstance(tests, list) and tests:
+            passed = sum(1 for test in tests if isinstance(test, dict)
+                         and test.get("authorized") and test.get("exit_code") == 0
+                         and not test.get("timed_out"))
+            failed = len(tests) - passed
+            lines.append(f"Pruebas detectadas: {passed} correctas, {failed} fallidas.")
+            for test in tests[:3]:
+                if not isinstance(test, dict):
+                    continue
+                status = ("OK" if test.get("authorized") and test.get("exit_code") == 0
+                          and not test.get("timed_out") else
+                          "timeout" if test.get("timed_out") else
+                          f"falló (código {test.get('exit_code')})")
+                lines.append(f"{test.get('runner', 'pruebas')}: {status}.")
+        else:
+            lines.append("Pruebas: no registradas por las herramientas del agente.")
+        if tool_log:
+            succeeded = sum(1 for _, ok in tool_log if ok)
+            failed = len(tool_log) - succeeded
+            lines.append(f"Herramientas: {succeeded} correctas, {failed} con error.")
+            if any(action == "run_command" for action, _ in tool_log):
+                lines.append("Nota: cambios hechos directamente por comandos shell pueden "
+                             "no estar incluidos en el conteo neto de archivos.")
+        self.panel("Resultado de la tarea", "\n".join(lines),
+                   style=THEME.success if not (tool_log and any(not ok for _, ok in tool_log))
+                   else THEME.warning)
 
     # -------------------------------------------------------------------- varios
     def banner(self, logo: str, tagline: str, subtitle: str) -> None:

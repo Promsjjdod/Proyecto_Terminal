@@ -1,12 +1,8 @@
 """Ciclo del agente: controlado, con límites de iteraciones y tiempo.
 
-Fases diferenciadas:
-- PLANIFICAR: se extrae el bloque "PLAN:" de la primera respuesta y se guarda
-  en la tarea (recuperable con /tasks).
-- EJECUTAR: cada llamada a herramienta es un paso; los resultados vuelven al
-  modelo como mensajes [RESULTADO].
-- VERIFICAR: las escrituras se verifican en el propio commit (relectura) y el
-  sistema exige al modelo comprobar antes de usar finish(success=true).
+Fases visibles vinculadas a operaciones: ANALIZAR, PLAN, WRITE, SAVE, CHECK,
+BUILD, FIX y EXPORT. Las escrituras se verifican en el propio commit
+(relectura); el sistema no deriva porcentajes del número de iteraciones.
 
 El ciclo detecta: necesidad de información del usuario (ask_user), fallos de
 herramienta/proveedor, respuesta sin acción (conversación normal) y límites
@@ -18,7 +14,7 @@ import json
 import re
 import time
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from nexo.agent.prompts import build_context, build_system_prompt
 from nexo.config.settings import AgentLimits
@@ -98,7 +94,7 @@ class Agent:
         memory: Memory,
         limits: AgentLimits,
         on_delta: Optional[Callable[[str], None]] = None,
-        on_event: Optional[Callable[[str, str], None]] = None,
+        on_event: Optional[Callable[[str, Any], None]] = None,
         use_native_tools: bool = True,
     ):
         self.registry = registry
@@ -156,7 +152,7 @@ class Agent:
         if conversation_id and self.memory.conversation_exists(conversation_id):
             self.memory.add_message(conversation_id, "user", user_text)
 
-        self.catalog.file_ops_count = 0
+        self.catalog.reset_task_tracking()
         plan: List[str] = []
         tool_log: List[Tuple[str, bool]] = []
         last_text = ""
@@ -209,10 +205,10 @@ class Agent:
                                     task_id=task_id, tool_log=tool_log, success=True)
 
             action, args = call
-            self.on_event("tool", f"{action}")
-            self.on_event("phase", "EJECUTAR")
+            self.on_event("tool", {"action": action, "path": str(args.get("path") or ""),
+                                    "command": str(args.get("command") or "")})
             if action == "export_file":
-                self.on_event("phase", "EXPORTAR")
+                self.on_event("phase", "EXPORT")
 
             if action not in TOOL_NAMES:
                 feedback = (f"[RESULTADO] Herramienta '{action}' desconocida. "
@@ -222,6 +218,7 @@ class Agent:
                 continue
 
             result: ToolResult = self.catalog.execute(action, args)
+            self.on_event("tool_result", result)
             tool_log.append((action, result.ok))
             self.memory.log_operation(f"tool:{action}",
                                       str(args.get("path") or args.get("command") or "")[:200],
@@ -238,7 +235,7 @@ class Agent:
                                     tool_log=tool_log, success=True)
 
             if result.finished:
-                self.on_event("phase", "VERIFICAR")
+                self.on_event("phase", "CHECK")
                 self.on_event("progress", "100")
                 summary = result.output
                 self.memory.update_task(task_id,
@@ -308,7 +305,7 @@ class Agent:
             self.memory.add_message(conversation_id, "user", user_text)
 
         schema = openai_tools_schema()
-        self.catalog.file_ops_count = 0
+        self.catalog.reset_task_tracking()
         plan: List[str] = []
         tool_log: List[Tuple[str, bool]] = []
         tools_executed = 0
@@ -328,7 +325,6 @@ class Agent:
                                     tool_log=tool_log, success=False)
             self.on_event("iteration", f"Iteración {iteration}/{self.limits.max_iterations} "
                                        f"(tool calling nativo)")
-            self.on_event("progress", str(int((iteration - 1) * 100 / self.limits.max_iterations)))
             try:
                 reply: ModelReply = provider.chat(messages, tools=schema,
                                                   on_delta=self.on_delta)
@@ -361,8 +357,9 @@ class Agent:
             if not reply.tool_calls:
                 # Respuesta final del modelo.
                 status = "terminada" if tools_executed else "conversacion"
-                self.on_event("phase", "VERIFICAR")
-                self.on_event("progress", "100")
+                if tools_executed:
+                    self.on_event("phase", "CHECK")
+                    self.on_event("progress", "100")
                 self.memory.update_task(task_id,
                                         status="completada" if tools_executed else "completada",
                                         result=(reply.content or "")[:2000],
@@ -374,13 +371,15 @@ class Agent:
                                     task_id=task_id, tool_log=tool_log, success=True)
 
             # Ejecutar las llamadas (paralelas del proveedor, en orden seguro).
-            self.on_event("phase", "EJECUTAR")
             tool_messages: List[ChatMessage] = []
             interrupted: Optional[AgentOutcome] = None
             for call in reply.tool_calls:
                 name = call.get("name", "")
-                args = call.get("arguments") or {}
-                self.on_event("tool", name)
+                raw_args = call.get("arguments") or {}
+                args = raw_args if isinstance(raw_args, dict) else {}
+                self.on_event("tool", {"action": name,
+                                        "path": str(args.get("path") or ""),
+                                        "command": str(args.get("command") or "")})
                 if call.get("_arguments_error"):
                     result = ToolResult(
                         False,
@@ -396,7 +395,8 @@ class Agent:
                     result = self.catalog.execute(name, args)
                     tools_executed += 1
                     if name == "export_file":
-                        self.on_event("phase", "EXPORTAR")
+                        self.on_event("phase", "EXPORT")
+                self.on_event("tool_result", result)
                 tool_log.append((name, result.ok))
                 self.memory.log_operation(
                     f"tool:{name}",
@@ -415,7 +415,7 @@ class Agent:
                                                success=True)
                     break
                 if result.finished:
-                    self.on_event("phase", "VERIFICAR")
+                    self.on_event("phase", "CHECK")
                     self.on_event("progress", "100")
                     self.memory.update_task(
                         task_id,

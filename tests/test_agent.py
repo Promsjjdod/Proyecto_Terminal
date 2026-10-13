@@ -91,6 +91,21 @@ def test_agent_creates_archivo_y_termina(agent_stack):
     assert tool_results and "contenido" in tool_results[-1].content
 
 
+def test_agent_emits_only_terminal_progress_not_iteration_estimates(agent_stack):
+    responses = [
+        tool_json("list_dir", path="."),
+        tool_json("list_dir", path="."),
+        tool_json("finish", summary="Inspección terminada.", success=True),
+    ]
+    events = []
+    agent, _ = make_agent(agent_stack, responses, on_event=lambda kind, value: events.append((kind, value)))
+    outcome = agent.run("inspecciona el workspace")
+    assert outcome.status == "terminada"
+    progress = [value for kind, value in events if kind == "progress"]
+    assert progress == ["100"]
+    assert all(value == "100" for value in progress)
+
+
 def test_agent_tool_error_is_reported_to_model(agent_stack):
     responses = [
         tool_json("read_file", path="no-existe.txt"),
