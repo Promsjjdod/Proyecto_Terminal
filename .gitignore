@@ -19,12 +19,13 @@ config.json
 *.sqlite3
 *.log
 
-# Secretos
+# Secretos y credenciales locales
 .env
 .env.*
 *.pem
 credentials*
-secrets*
+/secrets.json
+/secrets.*.json
 
 # Sistema
 .DS_Store

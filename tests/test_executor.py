@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import os
+import threading
+import time
 
 from nexo.permissions.manager import OperationKind
 
@@ -60,6 +62,30 @@ def test_timeout_kills_child_processes(stack):
     # Shell que lanza un hijo: el grupo completo debe morir (start_new_session).
     result = stack["executor"].run("sh -c 'sleep 30 & sleep 30'", timeout=1.0)
     assert result.timed_out
+
+
+def test_cancel_interrupts_running_process(stack):
+    results = []
+    # La conexión SQLite de la fixture está ligada al hilo que la creó; la
+    # prueba aquí la API del ejecutor, no la concurrencia de la base de datos.
+    stack["executor"].memory = None
+    worker = threading.Thread(
+        target=lambda: results.append(stack["executor"].run("sleep 30", timeout=20)),
+        daemon=True,
+    )
+    worker.start()
+    deadline = time.monotonic() + 5
+    while stack["executor"].running_count() == 0 and time.monotonic() < deadline:
+        time.sleep(0.02)
+    assert stack["executor"].running_count() == 1
+    assert stack["executor"].cancel()
+    worker.join(timeout=5)
+    assert not worker.is_alive()
+    assert len(results) == 1
+    assert results[0].cancelled
+    assert not results[0].timed_out
+    assert not results[0].ok
+    assert "cancelado" in results[0].stderr.lower()
 
 
 def test_output_limit_truncates(stack):

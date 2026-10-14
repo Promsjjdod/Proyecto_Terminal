@@ -205,15 +205,33 @@ class CommandExecutor:
         t_out.start()
         t_err.start()
 
+        deadline = start + timeout_s
         try:
-            exit_code = proc.wait(timeout=timeout_s)
-        except subprocess.TimeoutExpired:
-            timed_out = True
-            self._terminate_tree(proc)
-            try:
-                exit_code = proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:  # pragma: no cover
-                exit_code = None
+            while True:
+                if cancel_event.is_set() and proc.poll() is None:
+                    cancelled = True
+                    self._terminate_tree(proc)
+                    try:
+                        exit_code = proc.wait(timeout=5)
+                    except subprocess.TimeoutExpired:  # pragma: no cover
+                        exit_code = None
+                    break
+
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    timed_out = True
+                    self._terminate_tree(proc)
+                    try:
+                        exit_code = proc.wait(timeout=5)
+                    except subprocess.TimeoutExpired:  # pragma: no cover
+                        exit_code = None
+                    break
+
+                try:
+                    exit_code = proc.wait(timeout=min(0.1, remaining))
+                    break
+                except subprocess.TimeoutExpired:
+                    continue
         finally:
             if cancel_event.is_set():
                 cancelled = True
@@ -227,7 +245,8 @@ class CommandExecutor:
             exit_code=exit_code,
             stdout=out_cap.text(),
             stderr=err_cap.text() + ("\n[timeout: el proceso superó "
-                                      f"{timeout_s:.0f}s y fue terminado]" if timed_out else ""),
+                                      f"{timeout_s:.0f}s y fue terminado]" if timed_out else "")
+                                  + ("\n[cancelado: el proceso fue interrumpido]" if cancelled else ""),
             duration_ms=duration,
             truncated=out_cap.truncated or err_cap.truncated,
             timed_out=timed_out,

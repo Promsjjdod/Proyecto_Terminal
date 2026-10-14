@@ -92,7 +92,7 @@ Para desarrollar:
 
 ```bash
 python -m pip install -r requirements-dev.txt
-python -m pytest tests/        # 233 pruebas, proveedores simulados
+python -m pytest tests/        # 234 pruebas, proveedores simulados
 ```
 
 ## Inicio rápido
@@ -314,7 +314,7 @@ nexo/
 python -m pytest tests/ -v
 ```
 
-233 pruebas automatizadas con **proveedores simulados** (HTTP mockeado con
+234 pruebas automatizadas con **proveedores simulados** (HTTP mockeado con
 `httpx.MockTransport` y `FakeProvider`): no necesitas API de pago. Cubren
 registro/selección de proveedores, streaming (SSE/NDJSON), errores de
 conexión/auth/429/timeout/respuestas vacías, reintentos, creación y edición
